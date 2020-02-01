@@ -1,10 +1,25 @@
 #include "FlexCAN_T4.h"
-FlexCAN_T4 <CAN2, RX_SIZE_256, TX_SIZE_16> Can0; //dataCAN
+FlexCAN_T4 <CAN2, RX_SIZE_256, TX_SIZE_16> Can0;
 
 struct message {
   CAN_message_t msg;
-  int num;
-} ws, lcd;
+  uint8_t checksum;
+  uint8_t lowTemp=15, highTemp=20, avgTemp;
+} bms;
+
+void genTemp(message &msg){
+  msg.lowTemp++;
+  msg.highTemp++;
+  msg.avgTemp = (msg.lowTemp + msg.highTemp)/2;
+}
+
+void checkSum(message &sum){
+  sum.checksum = 0;
+  for (int i = 0; i < 6; i++){
+    sum.checksum += sum.msg.buf[i];  // 1. Sum of the data
+  }
+  sum.checksum += (57+8); // Add 0x39 & Data Length
+}
 
 void canSniff(const CAN_message_t &msg) {
   Serial.print(" MB "); Serial.print(msg.mb);
@@ -17,11 +32,7 @@ void canSniff(const CAN_message_t &msg) {
   for ( uint8_t i = 0; i < msg.len; i++ ) {
     Serial.print(msg.buf[i], HEX); Serial.print(" ");
   } Serial.println();
-  
-  lcd.msg = msg;
-  lcd.msg.id = 0x999; // wheel speed id
 }
-
 
 void setup(void) {
   Serial.begin(115200); delay(400);
@@ -38,10 +49,28 @@ void setup(void) {
 
 void loop() {
   Can0.events();
-  
+
   static uint32_t timeout = millis();
-  if ( millis() - timeout > 100 ) { // send random frame every 100ms
-    Can0.write(lcd.msg);
+  if ( millis() - timeout > 2000 ) { // send random frame every 2000ms
+
+    bms.msg.id = 0x1839F380; // module #2
+    bms.msg.flags.extended = 1;
+
+    genTemp(bms);
+    bms.msg.buf[0] = 0;  // module #2
+    bms.msg.buf[1] = bms.lowTemp; // random low data
+    bms.msg.buf[2] = bms.highTemp; // random high data
+    bms.msg.buf[3] = bms.avgTemp; // poor avg calc
+    bms.msg.buf[4] = 72; // number of therms
+    bms.msg.buf[5] = 0;
+    bms.msg.buf[6] = 0;
+
+    checkSum(bms);
+    bms.msg.buf[7] = bms.checksum;  // checksum, we need to figure out how to do this
+
+    
+    Can0.write(bms.msg);
     timeout = millis();
+    canSniff(bms.msg);
   }
 }

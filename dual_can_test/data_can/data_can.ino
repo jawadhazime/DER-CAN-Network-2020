@@ -33,18 +33,13 @@ void setup(void) {
   Can0.mailboxStatus();
 }
 
-int randomWheelSpeed(int num){
-   num = (rand()%10)+20;
-   return num;
-}
-
 void loop() {
   Can0.events();
 
   static uint32_t timeout = millis();
   if ( millis() - timeout > 100 ) { // send random frame every 100ms
 
-    ws.num = randomWheelSpeed(ws.num); // generate random wheel speed
+    ws.num = (rand()%10)+20; // generate random wheel speed
     
     ws.msg.id = 0x0888; // wheel speed id
 

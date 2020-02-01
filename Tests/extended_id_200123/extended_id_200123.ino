@@ -36,8 +36,7 @@ void loop() {
   Can0.events();
 
   static uint32_t timeout = millis();
-  if ( millis() - timeout > 100 ) { // send random frame every 100
-    ms
+  if ( millis() - timeout > 100 ) { // send random frame every 100ms
     
     b0.msg.id = 0x1839F380; // module #1
     b0.msg.flags.extended = 1;
@@ -51,7 +50,7 @@ void loop() {
     b0.msg.buf[4] = 72; // fake temp data
     b0.msg.buf[5] = 0;
     b0.msg.buf[6] = 0;
-    b0.msg.buf[7] = 0;  // checksum, we need to figure out how to do this
+    b0.msg.buf[7] = 232;  // checksum, we need to figure out how to do this
     
     b1.msg.buf[0] = 1;  // module #1
     b1.msg.buf[1] = 20; // fake temp data
@@ -60,7 +59,7 @@ void loop() {
     b1.msg.buf[4] = 72; // fake temp data
     b1.msg.buf[5] = 0;
     b1.msg.buf[6] = 0;
-    b1.msg.buf[7] = 0;  // checksum, we need to figure out how to do this
+    b1.msg.buf[7] = 232;  // checksum, we need to figure out how to do this
 
     //----------------------------------------------------------------------
 
@@ -76,16 +75,16 @@ void loop() {
     b2.msg.buf[4] = 72; // fake temp data
     b2.msg.buf[5] = 0;
     b2.msg.buf[6] = 0;
-    b2.msg.buf[7] = 0;  // checksum, we need to figure out how to do this
+    b2.msg.buf[7] = 232;  // checksum, we need to figure out how to do this
 
-    b3.msg.buf[0] = 2;  // module #2
-    b3.msg.buf[1] = 20; // fake temp data
-    b3.msg.buf[2] = 50; // fake temp data
-    b3.msg.buf[3] = 25; // fake temp data
-    b3.msg.buf[4] = 72; // fake temp data
-    b3.msg.buf[5] = 0;
-    b3.msg.buf[6] = 0;
-    b3.msg.buf[7] = 0;  // checksum, we need to figure out how to do this
+    // b3.msg.buf[0] = 2;  // module #2
+    // b3.msg.buf[1] = 20; // fake temp data
+    // b3.msg.buf[2] = 50; // fake temp data
+    // b3.msg.buf[3] = 25; // fake temp data
+    // b3.msg.buf[4] = 72; // fake temp data
+    // b3.msg.buf[5] = 0;
+    // b3.msg.buf[6] = 0;
+    // b3.msg.buf[7] = 232;  // checksum, we need to figure out how to do this
     
     Can0.write(b0.msg);
     Can0.write(b1.msg);
