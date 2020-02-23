@@ -1,10 +1,24 @@
 #include "FlexCAN_T4.h"
+#include <LiquidCrystal.h>
 FlexCAN_T4 <CAN2, RX_SIZE_256, TX_SIZE_16> Can0; //dataCAN
 
+// LCD Meta -------------------------------------------------
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+int wheelSpeed;
+
+void DisplayTempSpeed(int wheelSpeed){
+  lcd.setCursor(0,0);
+  lcd.print("SPEED: ");
+  lcd.setCursor(6, 0);
+  lcd.print(wheelSpeed);
+  delay(500);
+  return;
+}
+
+// CAN Meta -------------------------------------------------
 struct message {
   CAN_message_t msg;
-  int num;
-} ws, lcd;
+} dis;
 
 void canSniff(const CAN_message_t &msg) {
   Serial.print(" MB "); Serial.print(msg.mb);
@@ -18,11 +32,12 @@ void canSniff(const CAN_message_t &msg) {
     Serial.print(msg.buf[i], HEX); Serial.print(" ");
   } Serial.println();
   
-  lcd.msg = msg;
-  lcd.msg.id = 0x999; // wheel speed id
+  dis.msg = msg;
+  dis.msg.id = 0x999; // wheel speed id
 }
 
 void setup(void) {
+  // Can Set-up -------------------------------------------------
   Serial.begin(115200); delay(400);
   pinMode(6, OUTPUT); digitalWrite(6, LOW); // enable transceiver
   Can0.begin();
@@ -33,14 +48,22 @@ void setup(void) {
   Can0.enableFIFOInterrupt();
   Can0.onReceive(canSniff);
   Can0.mailboxStatus();
+
+  // LCD Set-up -------------------------------------------------
+  lcd.begin(8, 2);// Switch on the LCD screen
+  lcd.print("DashBoard");
+  lcd.setCursor(0,1);
+  lcd.print("d");
+  delay(1500);
 }
 
 void loop() {
+  // CAN Loop -------------------------------------------------
   Can0.events();
-
   static uint32_t timeout = millis();
-  if ( millis() - timeout > 100 ) { // send random frame every 100ms
-    Can0.write(lcd.msg);
-    timeout = millis();
+  if ( millis() - timeout > 1000 ) { // send random frame every 1000ms
+    lcd.clear();
+    wheelSpeed = (int)dis.msg.buf[0];
+    DisplayTempSpeed(wheelSpeed);
   }
 }
