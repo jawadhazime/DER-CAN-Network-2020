@@ -1,6 +1,32 @@
 #include "FlexCAN_T4.h"
 FlexCAN_T4 <CAN2, RX_SIZE_256, TX_SIZE_16> Can0;
 
+struct message {
+  CAN_message_t msg;
+  int num;
+} b, d, e, t, v; // broadcast, disable, enable, torque, vehicleStateMachine
+
+//-----------------------------------------
+
+// Helper Variables
+int start = 0; // Ensures Enable Message is sent only once
+int potVal = 0; // Initial Analog Value from Sensor
+float potMsg = 0; // Can Value from Sensor packaged for CAN
+bool waitReady = false; // VSM Wait State
+bool torqReady = false; // Ready to send Torque Values
+static uint32_t timeout = 0; // Initial timeout value
+
+//-----------------------------------------
+
+// Converts analog input from 10bit to 8bit for packaging as a CAN Message
+float ten2eight(int tenBit){
+  float eightBit = 0;
+  float num = (float)tenBit;
+  eightBit = (num/1023)*255;
+  return eightBit;
+}
+
+//=====================================================================================================================================
 
 void canSniff(const CAN_message_t &msg) {
   Serial.print("MB "); Serial.print(msg.mb);
@@ -13,7 +39,16 @@ void canSniff(const CAN_message_t &msg) {
   for ( uint8_t i = 0; i < msg.len; i++ ) {
     Serial.print(msg.buf[i], HEX); Serial.print(" ");
   } Serial.println();
+
+  // Set Vehicle State Machine Message from the Motor Controllers
+  if(msg.id == 0x0AA){
+    v.msg = msg;
+    v.num = msg.buf[0];
+    if(v.num == 4){waitReady = true;}
+  }
 }
+
+//=====================================================================================================================================
 
 void setup(void) {
   Serial.begin(115200); delay(400);
@@ -26,71 +61,86 @@ void setup(void) {
   Can0.enableFIFOInterrupt();
   Can0.onReceive(canSniff);
   Can0.mailboxStatus();
+  
+  delay(250);
+  
+  //-----------------------------------------
+    // Enable broadcasts
+    b.msg.id = 0x0C1;
+    b.msg.buf[0] = 148;
+    b.msg.buf[1] = 0;
+    b.msg.buf[2] = 1;
+    b.msg.buf[3] = 0;
+    b.msg.buf[4] = 255;
+    b.msg.buf[5] = 255;
+    b.msg.buf[6] = 255;
+    b.msg.buf[7] = 255;
+    Can0.write(b.msg);
+    canSniff(b.msg);
 
-  // Disable the inverter for 200 seconds for pre-charge to be able to complete initiation
-  CAN_message_t dmsg;
-  for (int t = 0; t<2000;t++){
-    dmsg.id = 0x0C0;
-    for ( uint8_t i = 0; i < 8; i++ ) {
-      dmsg.buf[i] = 0;
-    }
-    Can0.write(dmsg);
-    canSniff(dmsg);
-  }
-
-  // Send the enable command to the inverter before sending torque values in the loop
-  /*CAN_message_t emsg;
-  emsg.id = 0x0C0;
-  for ( uint8_t i = 0; i < 8; i++ ) {
-    if(i==5){emsg.buf[i]=1;}
-    else{dmsg.buf[i] = 0;}
-  }
-  Can0.write(emsg);
-  canSniff(emsg);
-  */
-
+  //-----------------------------------------
+  
   // end setup
 }
 
-float ten2eight(int tenBit){
-  float eightBit = 0;
-  float num = (float)tenBit;
-
-  eightBit = (num/1023)*255;
-
-  return eightBit;
-}
-
-int potVal = 0;
-float potMsg = 0;
+//=====================================================================================================================================
 
 void loop() {
   Can0.events();
-
-  // Convert potentiometer reads from Pin0 from 10bit to 8bit to send via CAN
-  potVal = analogRead(0);
-  potMsg = (int)ten2eight(potVal);
-  delay(250);
-
-
-  // Send torque values to motor controller from linear potentiometer
-  static uint32_t timeout = millis();
-  if ( millis() - timeout > 2 ) { // send random frame every 20ms
-    CAN_message_t msg;
-    msg.id = 0x0C0;
-    for ( uint8_t i = 0; i < 8; i++ ) {
-      if(i==0){msg.buf[i] = (uint8_t)potMsg;}
-      else if(i==4){msg.buf[i] = 1;}
-      else if(i==5){msg.buf[i] = 1;}
-      else{msg.buf[i] = 0;}
+  
+  // send frame every 20ms
+  timeout = millis();
+  if ( millis() - timeout > 20 ) {
+    Serial.print(timeout);
+    //-----------------------------------------
+  
+    // Disable the inverter waits for Vehicle State Machine to send waitReady (as 4)
+    if (waitReady == false) {
+        d.msg.id = 0x0C0;
+        for ( uint8_t i = 0; i < 8; i++ ) {
+          d.msg.buf[i] = 0;
+        }
+        Can0.write(d.msg);
+        canSniff(d.msg);
     }
-
     
-    Can0.write(msg);
-    timeout = millis();
+    //-----------------------------------------
     
-    canSniff(msg);
-
+    // Send the enable command to the inverter before sending torque values in the loop
+    if (start == 0 && waitReady == true){
+      e.msg.id = 0x0C0;
+      for ( uint8_t i = 0; i < 8; i++ ) {
+        if(i==5){e.msg.buf[i]=1;}
+        else{e.msg.buf[i] = 0;}
+      }
+      Can0.write(e.msg);
+      canSniff(e.msg);
+      start = 1;
+      torqReady = true;
+    }
+  
+    //-----------------------------------------
+  
+    
+    // Send torque values to motor controller from linear potentiometer
+    if (torqReady == true){
+      // Convert potentiometer reads from Pin0 from 10bit to 8bit to send via CAN
+      potVal = analogRead(0);
+      potMsg = (int)max((ten2eight(potVal)/51),1); // Limit torque to 1 to 5Nm
+      t.msg.id = 0x0C0;
+      for ( uint8_t i = 0; i < 8; i++ ) {
+        if(i==0){t.msg.buf[i] = (uint8_t)potMsg;}
+        else if(i==4){t.msg.buf[i] = 1;} // reverse mode is 0, forward mode is 1
+        else if(i==5){t.msg.buf[i] = 1;}
+        else{t.msg.buf[i] = 0;}
+      }
+      Can0.write(t.msg);
+      timeout = millis();
+      canSniff(t.msg);
+    }
+    
+    //-----------------------------------------
     // end loop
-  } 
+  
+  }
 }
