@@ -37,13 +37,6 @@ float ten2eight(int tenBit){
   eightBit = (num/1023)*255;
   return eightBit;
 }
-float ten2eight(int tenBit){
-  float eightBit = 0;
-  float num = (float)tenBit;
-  eightBit = (num/1023)*255;
-  return eightBit;
-}
-
 void setup(void) {
   Serial.begin(115200); delay(400);
   pinMode(6, OUTPUT); digitalWrite(6, LOW); // enable transceiver
