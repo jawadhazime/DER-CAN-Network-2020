@@ -1,0 +1,43 @@
+#include "FlexCAN_T4.h"
+
+FlexCAN_T4FD<CAN3, RX_SIZE_256, TX_SIZE_16> FD;
+
+void setup(void) {
+  Serial.begin(115200); delay(500);
+  pinMode(6, OUTPUT); digitalWrite(6, LOW);
+  FD.begin();
+  CANFD_timings_t config;
+  config.clock = CLK_24MHz;
+  config.baudrate = 500000;
+  config.baudrateFD = 1000000;
+  config.propdelay = 190;
+  config.bus_length = 1;
+  config.sample = 87.5;
+  FD.setRegions(64);
+  FD.setBaudRate(config);
+  FD.mailboxStatus();
+}
+
+void loop() {
+  CANFD_message_t msg;
+  msg.len = 8; msg.id = 0x321;
+  msg.buf[0] = 1; msg.buf[1] = 2; msg.buf[2] = 3; msg.buf[3] = 4;
+  msg.buf[4] = 5; msg.buf[5] = 6; msg.buf[6] = 7; msg.buf[7] = 8;
+  FD.write(msg);
+      if ( FD.read(msg) ) {
+    Serial.println("MB: "); Serial.print(msg.mb);
+    Serial.println("  ID: 0x"); Serial.print(msg.id, HEX );
+    Serial.println("  EXT: "); Serial.print(msg.flags.extended );
+    Serial.println("  LEN: "); Serial.print(msg.len);
+    Serial.println(" DATA: ");
+    for ( uint8_t i = 0; i < 8; i++ ) {
+      //Serial.println(msg.buf[i]); Serial.print(" ");
+    }
+    //Serial.println("  TS: "); Serial.println(msg.timestamp);(
+    Serial.println("Yes We CAN");
+  } else { Serial.println("No CAN Do");}
+
+  Serial.println("This is a test");
+  
+  delay(50);
+}
